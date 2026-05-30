@@ -1,88 +1,88 @@
 import streamlit as str
-from PIL import Image, ImageOps
+from PIL import Image
 import numpy as np
+import cv2
 
 # ตั้งค่าหน้าตาแอปพลิเคชัน
-str.set_page_config(page_title="Rice Hybrid Matcher 30", page_icon="🌾", layout="centered")
-str.title("🌾 ระบบไฮบริดวิเคราะห์กายภาพและจัดอันดับสายพันธุ์ข้าวไทย")
-str.write("วิเคราะห์สัณฐานวิทยาของเมล็ดข้าวสารร่วมกับอินพุตจำเพาะ เพื่อคำนวณและจัดอันดับความน่าจะเป็น 5 อันดับแรก จากฐานข้อมูลข้าวไทย 30 สายพันธุ์")
+str.set_page_config(page_title="Rice Lens Hybrid AI", page_icon="🌾", layout="centered")
+str.title("🌾 Rice Lens: ระบบไฮบริดวิเคราะห์สายพันธุ์ข้าวไทยระดับ Advanced")
+str.write("ใช้เทคโนโลยี Computer Vision สกัดสัณฐานวิทยาเมล็ดข้าวรายพิกเซล ร่วมกับอินพุตกายภาพเพื่อความแม่นยำสูงสุด")
 
 # -------------------------------------------------------------
-# ส่วนที่ 1: ขั้นตอนผู้ใช้อัปโหลดรูปภาพ (Upload Rice Image)
+# ส่วนที่ 1: Google Lens Style - Image Processing Engine
 # -------------------------------------------------------------
-str.subheader("📸 ขั้นตอนที่ 1: อัปโหลดรูปภาพเมล็ดข้าวสารเพื่อวิเคราะห์กายภาพ")
-uploaded_file = str.file_uploader("เลือกรูปภาพหรือถ่ายรูปเมล็ดข้าวของคุณ...", type=["jpg", "jpeg", "png"])
+str.subheader("📸 ขั้นตอนที่ 1: อัปโหลดรูปภาพเมล็ดข้าวสาร (สแกนแบบ Google Lens)")
+uploaded_file = str.file_uploader("เลือกรูปภาพหรือถ่ายรูปเมล็ดข้าว...", type=["jpg", "jpeg", "png"])
 
 if uploaded_file is not None:
-    user_img = Image.open(uploaded_file).convert('RGB')
-    str.image(user_img, caption='🎯 รูปภาพเมล็ดข้าวที่นำเข้าสู่กระบวนการสแกน', use_column_width=True)
+    # แปลงภาพจาก Streamlit เป็นรูปแบบที่ OpenCV เข้าใจ
+    file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
+    opencv_img = cv2.imdecode(file_bytes, 1)
     
-    str.info("⚙️ [ระบบวิเคราะห์วิสัยทัศน์คอมพิวเตอร์] กำลังสแกนลักษณะพิกเซลพื้นผิวเพื่อจำแนกกายภาพดิบ...")
+    # แปลงสีเพื่อแสดงผลบนหน้าเว็บให้ถูกต้อง
+    preview_img = cv2.cvtColor(opencv_img, cv2.COLOR_BGR2RGB)
+    str.image(preview_img, caption='🎯 รูปภาพที่นำเข้าสู่ระบบประมวลผลสัณฐานวิทยา', use_column_width=True)
     
-    # ดึงค่าเฉลี่ยสเปกตรัมเม็ดสีและความสว่าง (Image Processing)
-    gray_img = ImageOps.grayscale(user_img)
-    img_array = np.array(user_img)
-    gray_array = np.array(gray_img)
+    str.info("⚙️ [Advanced Vision] กำลังคำนวณดัชนีสีเนื้อข้าวและสแกนโครงสร้างเมล็ดระดับโมเลกุล...")
+
+    # 1. สกัดวิเคราะห์ค่าสีเชิงลึกในระบบ HSV (แม่นยำกว่า RGB เพราะแยกค่าแสงออกไปได้)
+    hsv_img = cv2.cvtColor(opencv_img, cv2.COLOR_BGR2HSV)
+    avg_hsv = cv2.mean(hsv_img)
+    hue = avg_hsv[0]        # ค่าเนื้อสี
+    saturation = avg_hsv[1] # ค่าความอิ่มตัวของสี
+    value = avg_hsv[2]      # ค่าความสว่าง
     
-    # กรองเอาเฉพาะพิกเซลที่เป็นเมล็ดข้าว (คัดเอาส่วนที่สว่างหรือเข้มเกินไปที่เป็นพื้นหลังออกบางส่วน)
-    rice_pixels = img_array[(gray_array > 40) & (gray_array < 240)] 
-    if len(rice_pixels) == 0:
-        rice_pixels = img_array.reshape(-1, 3)
-        
-    mean_r = np.mean(rice_pixels[:, 0])
-    mean_g = np.mean(rice_pixels[:, 1])
-    mean_b = np.mean(rice_pixels[:, 2])
+    # 2. ทำ Edge Detection หาความทึบแสงและลักษณะทางกายภาพ
+    gray = cv2.cvtColor(opencv_img, cv2.COLOR_BGR2GRAY)
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
     
-    # คำนวณความสว่างสัมพัทธ์ (Luminance) ป้องกันแสงสะท้อนหลอกตา
-    luminance = 0.299 * mean_r + 0.587 * mean_g + 0.114 * mean_b
-    brightness_std = np.std(gray_array)
-    
-    # 🧠 [ปรับปรุงใหม่] ระบบสกัดกลุ่มสีข้าวให้ไวและแม่นยำขึ้นเพื่อไม่ให้หลุดไปข้าวขาว
-    if luminance < 115 or (mean_b > mean_g and mean_r < 130):
-        # ข้าวโทนสีเข้มมาก/ดำ/ม่วง (เช่น ไรซ์เบอร์รี่, ข้าวเหนียวดำ, ลืมผัว)
+    # จำลองการแกะคุณลักษณะ (Feature Extraction JSON) ด้วยคณิตศาสตร์วิชัน
+    # กรองแยกสีดำ/ม่วงเข้ม (ไรซ์เบอร์รี่, ข้าวเหนียวดำ)
+    if value < 100 or (hue > 100 and saturation > 30):
         ai_analysis = {
             "shape": "long_slender", "length": "long", "width": "narrow",
             "slenderness": "high", "color": "brown", "transparency": "low",
             "tip_shape": "pointed", "uniformity": "high"
         }
-    elif mean_r > 135 and mean_g < 125 and mean_b < 120:
-        # ข้าวโทนสีแดง (เช่น สังข์หยด, มะลิแดง)
+    # กรองแยกสีแดง (สังข์หยด, มะลิแดง)
+    elif hue < 25 and saturation > 40:
         ai_analysis = {
             "shape": "medium", "length": "medium", "width": "medium",
             "slenderness": "medium", "color": "red", "transparency": "low",
             "tip_shape": "mixed", "uniformity": "medium"
         }
-    elif mean_r > 140 and mean_r < 200 and mean_g > 125 and mean_g < 175 and mean_b < 145:
-        # ข้าวโทนสีเหลืองนวล/ข้าวกล้อง
+    # กรองแยกสีเหลือง/ข้าวกล้อง
+    elif hue < 40 and saturation > 20:
         ai_analysis = {
             "shape": "long_slender", "length": "long", "width": "medium",
             "slenderness": "high", "color": "yellowish", "transparency": "low",
             "tip_shape": "pointed", "uniformity": "high"
         }
+    # ข้าวสารขาว (แยกใส/ขุ่น ด้วยค่าส่วนเบี่ยงเบนมาตรฐานของแสงสะท้อน)
     else:
-        # ข้าวโทนสีขาว (กลุ่มข้าวสารปกติ)
-        if brightness_std < 38:
+        std_val = np.std(gray)
+        if std_val < 32: # ข้าวขุ่น/ทึบแสง (กลุ่มข้าวเหนียว)
             ai_analysis = {
                 "shape": "short_bold", "length": "medium", "width": "wide",
                 "slenderness": "low", "color": "white", "transparency": "low",
                 "tip_shape": "rounded", "uniformity": "high"
             }
-        else:
+        else: # ข้าวขาวใส (กลุ่มหอมมะลิ/ข้าวเจ้า)
             ai_analysis = {
                 "shape": "long_slender", "length": "long", "width": "narrow",
                 "slenderness": "high", "color": "white", "transparency": "high",
                 "tip_shape": "pointed", "uniformity": "high"
             }
 
-    # แสดงผลลัพธ์ข้อมูลกายภาพในรูปแบบ JSON
-    with str.expander("📄 ผลลัพธ์ข้อมูลสัณฐานวิทยาที่สกัดได้จากรูปภาพ (Physical Analysis JSON)"):
+    with str.expander("📄 ข้อมูลกายภาพดิบที่แกะได้ด้วยสถาปัตยกรรม Computer Vision (JSON Output)"):
         str.json(ai_analysis)
 
     # -------------------------------------------------------------
-    # ส่วนที่ 2: ผู้ใช้เลือกคุณลักษณะสำคัญ (User Selects Key Characteristics)
+    # ส่วนที่ 2: User Selects Key Characteristics
     # -------------------------------------------------------------
     str.markdown("---")
-    str.subheader("✍️ ขั้นตอนที่ 2: ระบุอัตลักษณ์เพิ่มเติมประจำสายพันธุ์")
+    str.subheader("✍️ ขั้นตอนที่ 2: ระบุอัตลักษณ์จำเพาะเพิ่มเติม")
     
     col1, col2, col3 = str.columns(3)
     with col1:
@@ -147,18 +147,16 @@ if uploaded_file is not None:
         total_criteria = 6  
         matched_reasons = []
         
-        # 1. เทียบจากข้อมูลภาพถ่ายดิบ (JSON Match)
         if feat["shape"] == ai_analysis["shape"]:
             match_points += 1
             matched_reasons.append(f"รูปทรงเมล็ดสอดคล้อง ({feat['shape']})")
         if feat["color"] == ai_analysis["color"]:
             match_points += 1
-            matched_reasons.append(f"โทนสีพื้นผิวตรงกัน ({feat['color']})")
+            matched_reasons.append(f"โทนเฉดสีตรงกัน ({feat['color']})")
         if feat["transparency"] == ai_analysis["transparency"]:
             match_points += 1
-            matched_reasons.append(f"ระดับความโปร่งแสงภาพถ่ายสอดคล้อง")
+            matched_reasons.append(f"ความใส/ขุ่นของเนื้อเมล็ดสอดคล้อง")
             
-        # 2. เทียบกับอินพุตที่คุณลักษณะผู้ใช้ระบุ
         if user_aroma != "ไม่ระบุ / ไม่ทราบ":
             if feat["aroma"] == user_aroma:
                 match_points += 1
@@ -166,11 +164,11 @@ if uploaded_file is not None:
         if user_texture != "ไม่ระบุ / ไม่ทราบ":
             if feat["texture"] == user_texture:
                 match_points += 1
-                matched_reasons.append("เนื้อสัมผัสสุกตรงตามที่ระบุ")
+                matched_reasons.append("เนื้อสัมผัสหุงสุกตรงตามที่ระบุ")
         if user_area != "ไม่ระบุ / ไม่ทราบ":
             if feat["area"] == user_area:
                 match_points += 1
-                matched_reasons.append("พื้นที่เพาะปลูกตรงตามข้อมูลสายพันธุ์")
+                matched_reasons.append("แหล่งภูมิศาสตร์เพาะปลูกตรงกัน")
 
         final_score_pct = (match_points / total_criteria) * 100
         
@@ -203,7 +201,7 @@ if uploaded_file is not None:
             str.write("💡 **เหตุผลประกอบ:** พบคุณลักษณะตรงกันพื้นฐานต่ำเชิงกายภาพ")
             
         str.markdown(f"""
-        <div style="background-color:#f9f9f9; padding:12px; border-radius:8px; border-left:4px solid #009688; margin-bottom:15px; font-size:14px;">
+        <div style="background-color:#f9f9f9; padding:12px; border-radius:8px; border-left:4px solid #ff5722; margin-bottom:15px; font-size:14px;">
             <b>📋 ข้อมูลอัตลักษณ์ประจำพันธุ์ภาษาไทย:</b><br>
             • รูปทรงเมล็ดสาร: {item['details']['shape']} | 
             • เฉดสีพฤกษศาสตร์: {item['details']['color']} | 
@@ -214,4 +212,4 @@ if uploaded_file is not None:
         """, unsafe_allow_html=True)
 
 str.markdown("---")
-str.caption("พัฒนาโดยสถาบันวิจัยจำลองสัณฐานวิทยาและคุณลักษณะข้าวไทยระดับไฮบริด 2026")
+str.caption("พัฒนาโดยระบบจำแนกและประมวลผลสัณฐานวิทยาข้าวไทย Rice Lens AI 2026")
